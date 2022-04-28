@@ -2,6 +2,7 @@
 import ProgressBar = require('progress');
 import { program } from 'commander';
 import { red, cyan } from 'chalk';
+import uniqBy = require('lodash/uniqBy');
 import { getAvailableDomains } from './getAvailableDomains';
 
 // Build helpers
@@ -14,10 +15,6 @@ function intArgument(value: string): number {
     throw new Error('Invalid integer.');
   }
   return result;
-}
-
-function unique<T>(array: T[]): T[] {
-  return array.filter((x, i, arr) => arr.indexOf(x) === i);
 }
 
 // Define program
@@ -71,17 +68,16 @@ program
     'Show help information',
     false,
   )
-  .action(async (domains, options) => {
+  .action(async (domains: string[], options) => {
     // Determine configuration
     if (options.help) {
       return program.outputHelp();
     }
-    const streamDomains = stdin.split('\n');
-    const allDomains = unique(
-      [ ...domains, ...streamDomains ]
+    const streamDomains = stdin.match(/(?:^|\s+)([^.\s]+(?:(?:\.[^.\s]+)+))/g) || [];
+    const sanitizedDomains = [ ...domains, ...streamDomains ]
         .map((x) => x.trim().split(/\s+/)[0])
-        .filter(Boolean)
-    );
+        .filter(Boolean);
+    const allDomains = uniqBy(sanitizedDomains, (x) => x.toLowerCase());
     if (allDomains.length === 0) {
       return program.outputHelp();
     }
