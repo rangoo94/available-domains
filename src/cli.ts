@@ -16,6 +16,10 @@ function intArgument(value: string): number {
   return result;
 }
 
+function unique<T>(array: T[]): T[] {
+  return array.filter((x, i, arr) => arr.indexOf(x) === i);
+}
+
 // Define program
 
 let stdin = '';
@@ -73,9 +77,11 @@ program
       return program.outputHelp();
     }
     const streamDomains = stdin.split('\n');
-    const allDomains = [ ...domains, ...streamDomains ]
-      .map((x) => x.trim().split(/\s+/)[0])
-      .filter(Boolean);
+    const allDomains = unique(
+      [ ...domains, ...streamDomains ]
+        .map((x) => x.trim().split(/\s+/)[0])
+        .filter(Boolean)
+    );
     if (allDomains.length === 0) {
       return program.outputHelp();
     }
