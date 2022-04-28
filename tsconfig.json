@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "es2018",
+    "lib": [ "es2018" ],
+    "module": "commonjs",
+    "baseUrl": ".",
+    "noEmitOnError": true,
+    "sourceMap": false,
+    "strict": true,
+    "declaration": true,
+    "paths": {
+      "*": [
+        "*",
+        "node_modules/*"
+      ]
+    }
+  },
+  "include": [
+    "./index.ts",
+    "./src/**/*.ts"
+  ],
+  "exclude": [
+    "./node_modules"
+  ]
+}
