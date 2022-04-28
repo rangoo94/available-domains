@@ -41,7 +41,7 @@ program
   )
   .requiredOption(
     '--printTaken, --print-taken, -pt',
-    'Should it print taken domains too (with "E" prefix)',
+    'Should it print taken domains too (with "[T]" prefix)',
     false,
   )
   .requiredOption<number>(
@@ -123,7 +123,7 @@ program
           availableCount++;
           process.stdout.write(`${domain}\n`);
         } else if (options.printTaken) {
-          process.stdout.write(red(`E ${domain}\n`));
+          process.stdout.write(red(`[T] ${domain}\n`));
         }
         tickProgress();
       },
