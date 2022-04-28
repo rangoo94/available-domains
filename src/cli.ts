@@ -78,6 +78,7 @@ program
         .map((x) => x.trim().split(/\s+/)[0])
         .filter(Boolean);
     const allDomains = uniqBy(sanitizedDomains, (x) => x.toLowerCase());
+    const duplicatesCount = sanitizedDomains.length - allDomains.length;
     if (allDomains.length === 0) {
       return program.outputHelp();
     }
@@ -133,7 +134,10 @@ program
     // Show summary
     const took = ((Date.now() - startTime) / 1000).toFixed(3);
     clearLine();
-    process.stderr.write(cyan(`${availableCount}/${allDomains.length} domains available. Took ${took} seconds.\n`));
+    const resultMessage = `${availableCount}/${allDomains.length} unique domains available.`;
+    const duplicatesMessage = duplicatesCount === 0 ? '' : ` Detected ${duplicatesCount} duplicates.`;
+    const tookMessage = ` Took ${took} seconds.`;
+    process.stderr.write(cyan(`${resultMessage}${duplicatesMessage}${tookMessage}\n`));
   })
   .showHelpAfterError(true);
 
