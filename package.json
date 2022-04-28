@@ -6,8 +6,8 @@
     "access": "public"
   },
   "bin": {
-    "available-domain": "./src/cli",
-    "available-domains": "./src/cli"
+    "available-domain": "./src/cli.js",
+    "available-domains": "./src/cli.js"
   },
   "main": "./index",
   "types": "./index.d.ts",

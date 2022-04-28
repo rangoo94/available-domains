@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import ProgressBar = require('progress');
 import { program } from 'commander';
 import { red, cyan } from 'chalk';
