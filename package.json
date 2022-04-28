@@ -15,7 +15,7 @@
     "clean": "rimraf src/**/*.{js,d.ts} index.{js,d.ts}",
     "build": "npm run clean && tsc -p ./tsconfig.json",
     "ts-check": "tsc -p ./tsconfig.json --noEmit",
-    "test": "npm run ts-check && npm run lint",
+    "test": "npm run ts-check",
     "prepublishOnly": "npm run build"
   },
   "homepage": "https://github.com/rangoo94/available-domains#readme",
