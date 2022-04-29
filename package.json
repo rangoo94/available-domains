@@ -1,6 +1,6 @@
 {
   "name": "available-domains",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Detect available domains from provided entries",
   "publishConfig": {
     "access": "public"
