@@ -60,6 +60,10 @@ Options:
   -h, --help                                     Show help information (default: false)
 ```
 
+> **Note:**
+> 
+> Because of concurrency, order of results is not guaranteed.
+
 ## How it works
 
 Firstly, it's resolving DNS for the specified domain. It's cheaper, less limited, but not precise.
