@@ -63,6 +63,12 @@ Options:
 > **Note:**
 > 
 > Because of concurrency, order of results is not guaranteed.
+> 
+> Thanks to piping, you may perform some operations nicely though, i.e.:
+> ```bash
+> cat domains-list.txt | available-domains | sort # Sort alphabetically
+> cat domains-list.txt | grep -x '.\{0,16\}' | available-domains # Take domains of max 16 characters
+> ```
 
 ## How it works
 
