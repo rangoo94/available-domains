@@ -4,6 +4,7 @@ import { program } from 'commander';
 import { red, cyan } from 'chalk';
 import uniqBy = require('lodash/uniqBy');
 import { getAvailableDomains } from './getAvailableDomains';
+import { extractWords } from './extractWords';
 
 // Build helpers
 
@@ -73,9 +74,11 @@ program
     if (options.help) {
       return program.outputHelp();
     }
-    const streamDomains = stdin.match(/(?:^|\s+)([^.\s]+(?:(?:\.[^.\s]+)+))/g) || [];
+    const streamDomains = extractWords(stdin)
+      .filter((x) => x.includes('.'));
     const sanitizedDomains = [ ...domains, ...streamDomains ]
         .map((x) => x.trim().split(/\s+/)[0])
+        .map((x) => x.replace(/^www\./, ''))
         .filter(Boolean);
     const allDomains = uniqBy(sanitizedDomains, (x) => x.toLowerCase());
     const duplicatesCount = sanitizedDomains.length - allDomains.length;
