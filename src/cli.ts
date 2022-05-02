@@ -1,11 +1,10 @@
 #!/usr/bin/env node
 import * as readline from 'readline';
 import ProgressBar = require('progress');
-import PQueue from 'p-queue';
 import { program } from 'commander';
 import { red, cyan } from 'chalk';
+import { DomainProcessor } from './DomainProcessor';
 import { extractWords } from './extractWords';
-import { isDomainAvailable } from './isDomainAvailable';
 
 // Build helpers
 
@@ -17,6 +16,16 @@ function intArgument(value: string): number {
     throw new Error('Invalid integer.');
   }
   return result;
+}
+
+function clearLine() {
+  process.stderr.clearLine(0);
+  if (process.stdout.cursorTo) {
+    process.stdout.cursorTo(0);
+  }
+  if (process.stderr.cursorTo) {
+    process.stderr.cursorTo(0);
+  }
 }
 
 // Define program
@@ -76,19 +85,9 @@ program
 
     // Initialize state
     const startTime = Date.now();
-    const allDomains: string[] = [];
-    const availableDomains: string[] = [];
-    const notAvailableDomains: string[] = [];
-    const failedDomains: string[] = [];
-    let duplicatesCount = 0;
-    let stdinEnd = false;
+    let availableCount = 0;
 
-    // Initialize queue
-    const queue = new PQueue({
-      concurrency: options.concurrency,
-    });
-
-    // Set-up progress bar
+    // Set up progress bar
     const bar = new ProgressBar(cyan(':bar :itemsPercent% (:itemsCurrent/:itemsTotal) [eta: :itemsEtas | took: :itemsElapseds]'), {
       total: 100,
       width: 20,
@@ -96,124 +95,79 @@ program
       incomplete: '░',
       clear: true,
     });
-    tickProgress();
 
-    // Initialize output helpers
-    function isEnd() {
-      return !queue.pending && queue.size === 0 && stdinEnd;
-    }
+    function tick() {
+      // `node-progress` changes behavior after reaching end.
+      // To handle continuous data from stream, simulate max 99%
+      const maxPercentage = processor.ended ? 100 : 99;
 
-    function clearLine() {
-      process.stderr.clearLine(0);
-      if (process.stdout.cursorTo) {
-        process.stdout.cursorTo(0);
-      }
-      if (process.stderr.cursorTo) {
-        process.stderr.cursorTo(0);
-      }
-    }
-
-    function tickProgress() {
-      const allCount = allDomains.length;
-      const processedCount = availableDomains.length + notAvailableDomains.length + failedDomains.length;
-      const leftCount = allCount - processedCount;
+      // Gather all data
+      const current = processor.finished;
+      const total = processor.size;
+      const percentage = total === 0 ? 0 : 100 * current / total;
       const elapsedMs = Date.now() - startTime;
-      const eta = elapsedMs * (leftCount / processedCount);
-      const percentage = allDomains.length === 0 ? 0 : 100 * processedCount / allCount;
+      const eta = elapsedMs * (total - current) / current;
+
+      // Update progress bar
       bar.curr = 0;
-      bar.tick(isEnd() ? percentage : Math.min(percentage, 99), {
-        itemsEta: ((isFinite(eta) ? eta : 0) / 1000).toFixed(1),
+      bar.tick(Math.min(percentage, maxPercentage), {
+        itemsCurrent: current,
+        itemsTotal: total,
+        itemsPercent: percentage.toFixed(1),
+        itemsEta: isFinite(eta) ? (eta / 1000).toFixed(1) : '0.0',
         itemsElapsed: (elapsedMs / 1000).toFixed(1),
-        itemsPercent: percentage.toFixed(2),
-        itemsCurrent: processedCount,
-        itemsTotal: allCount,
       });
       bar.render(undefined, true);
     }
 
-    // Initialize state helpers
-    async function handle(name: string): Promise<void> {
-      try {
-        const available = await isDomainAvailable(name, options);
-        clearLine();
-        if (available) {
-          availableDomains.push(name);
-          process.stdout.write(`${name}\n`);
-        } else if (options.printTaken) {
-          notAvailableDomains.push(name);
-          process.stdout.write(red(`[T] ${name}\n`));
-        }
-      } catch (rawError) {
-        const error = rawError as Error;
-        failedDomains.push(name);
-        clearLine();
-        process.stderr.write(red(`${name} - error: ${error.message.replace(/\n/g, ' ')}\n`));
-      }
-      tickProgress();
-    }
-
-    function add(name: string): void {
-      const finalName = name.trim().replace(/^www\./, '').toLowerCase();
-      if (!name) {
-        return;
-      } else if (allDomains.includes(finalName)) {
-        duplicatesCount++;
-      } else {
-        allDomains.push(finalName);
-        queue.add(() => handle(finalName));
-        tickProgress();
-      }
-    }
-
-    let finished = false;
-    function finish(): void {
-      if (!isEnd() || finished) {
-        return;
-      }
-
-      tickProgress();
-
-      finished = true;
-
-      // Show help if there was no domains provided
-      if (allDomains.length === 0) {
-        return program.outputHelp();
-      }
-
-      // Show summary
-      const took = ((Date.now() - startTime) / 1000).toFixed(3);
+    // Set-up processor
+    const processor = new DomainProcessor(options);
+    processor.on('add', tick);
+    processor.on('available', (name) => {
       clearLine();
-      const resultMessage = `${availableDomains.length}/${allDomains.length} unique domains available.`;
+      availableCount++;
+      process.stdout.write(`${name}\n`);
+      tick();
+    });
+    if (options.printTaken) {
+      processor.on('taken', (name) => {
+        clearLine();
+        process.stdout.write(red(`[T] ${name}\n`));
+        tick();
+      });
+    }
+    processor.on('failed', (name, error) => {
+      clearLine();
+      process.stderr.write(red(`${name} - error: ${error.message.replace(/\n/g, ' ')}\n`));
+      tick();
+    });
+    processor.on('end', () => {
+      clearLine();
+      const allCount = processor.size;
+      const duplicatesCount = processor.duplicated;
+      const took = ((Date.now() - startTime) / 1000).toFixed(3);
+      const resultMessage = `${availableCount}/${allCount} unique domains available.`;
       const duplicatesMessage = duplicatesCount === 0 ? '' : ` Detected ${duplicatesCount} duplicates.`;
       const tookMessage = ` Took ${took} seconds.`;
       process.stderr.write(cyan(`${resultMessage}${duplicatesMessage}${tookMessage}\n`));
+    });
+
+    // Put data from arguments into processor
+    for (const domain of domains) {
+      processor.add(domain);
     }
 
-    for (const name of domains) {
-      add(name);
-    }
-
-    // Handle queue end
-    queue.on('idle', finish);
-
-    // Read stdin if available
+    // Read standard input if available
     if (process.stdin.isTTY) {
-      stdinEnd = true;
+      processor.end();
     } else {
       const rl = readline.createInterface({ input: process.stdin });
-      rl.on('line', (line) => extractWords(line).forEach(add));
-      rl.on('close', () => {
-        stdinEnd = true;
-        finish();
-      });
-      rl.on('pause', () => {
-        stdinEnd = true;
-        finish();
-      });
+      rl.on('line', (line) => extractWords(line).forEach((name) => processor.add(name)));
+      rl.on('close', () => processor.end());
     }
 
-    // Try to finish immediately if empty
-    finish();
+    // Initialize progress bar status
+    tick();
   })
   .showHelpAfterError(true);
 
