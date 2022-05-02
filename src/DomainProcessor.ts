@@ -26,7 +26,7 @@ export class DomainProcessor extends EventEmitter {
   private _finished: number = 0;
   private _failed: number = 0;
   private _succeed: number = 0;
-  private ended: boolean = false;
+  private _ended: boolean = false;
 
   public declare readonly on: <K extends keyof DomainProcessorEvents>(eventName: K, listener: DomainProcessorEventListener<K>) => this;
   public declare readonly emit: <K extends keyof DomainProcessorEvents>(eventName: K, ...args: Parameters<DomainProcessorEventListener<K>>) => boolean;
@@ -48,7 +48,7 @@ export class DomainProcessor extends EventEmitter {
       if (this.idle) {
         this.emit('idle');
       }
-      if (this.ended) {
+      if (this._ended) {
         this.emit('end');
       }
     });
@@ -78,11 +78,15 @@ export class DomainProcessor extends EventEmitter {
     return this.queue.size === 0 && this.queue.pending === 0;
   }
 
+  public get ended(): boolean {
+    return this.idle && this._ended;
+  }
+
   public end(): void {
-    if (this.ended) {
+    if (this._ended) {
       return;
     }
-    this.ended = true;
+    this._ended = true;
     if (this.idle) {
       this.emit('end');
     }
