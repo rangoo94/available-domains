@@ -89,7 +89,8 @@ export class DomainProcessor extends EventEmitter {
     }
     this._ended = true;
     if (this.idle) {
-      this.emit('end');
+      // lift, so 'end' is always asynchronous
+      Promise.resolve().then(() => this.emit('end'));
     }
   }
 
