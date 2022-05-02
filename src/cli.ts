@@ -1,10 +1,11 @@
 #!/usr/bin/env node
+import * as readline from 'readline';
 import ProgressBar = require('progress');
+import PQueue from 'p-queue';
 import { program } from 'commander';
 import { red, cyan } from 'chalk';
-import uniqBy = require('lodash/uniqBy');
-import { getAvailableDomains } from './getAvailableDomains';
 import { extractWords } from './extractWords';
+import { isDomainAvailable } from './isDomainAvailable';
 
 // Build helpers
 
@@ -19,8 +20,6 @@ function intArgument(value: string): number {
 }
 
 // Define program
-
-let stdin = '';
 
 program
   .name(pkgJson.name)
@@ -70,30 +69,39 @@ program
     false,
   )
   .action(async (domains: string[], options) => {
-    // Determine configuration
+    // Detect help
     if (options.help) {
       return program.outputHelp();
     }
-    const streamDomains = extractWords(stdin)
-      .filter((x) => x.includes('.'));
-    const sanitizedDomains = [ ...domains, ...streamDomains ]
-        .map((x) => x.trim().split(/\s+/)[0])
-        .map((x) => x.replace(/^www\./, ''))
-        .filter(Boolean);
-    const allDomains = uniqBy(sanitizedDomains, (x) => x.toLowerCase());
-    const duplicatesCount = sanitizedDomains.length - allDomains.length;
-    if (allDomains.length === 0) {
-      return program.outputHelp();
-    }
+
+    // Initialize state
+    const startTime = Date.now();
+    const allDomains: string[] = [];
+    const availableDomains: string[] = [];
+    const notAvailableDomains: string[] = [];
+    const failedDomains: string[] = [];
+    let duplicatesCount = 0;
+    let stdinEnd = false;
+
+    // Initialize queue
+    const queue = new PQueue({
+      concurrency: options.concurrency,
+    });
 
     // Set-up progress bar
-    const bar = new ProgressBar(cyan(':bar :percent (:current/:total) [eta: :etas | took: :elapseds]'), {
-      total: allDomains.length,
+    const bar = new ProgressBar(cyan(':bar :itemsPercent% (:itemsCurrent/:itemsTotal) [eta: :itemsEtas | took: :itemsElapseds]'), {
+      total: 100,
       width: 20,
       complete: '█',
       incomplete: '░',
       clear: true,
     });
+    tickProgress();
+
+    // Initialize output helpers
+    function isEnd() {
+      return !queue.pending && queue.size === 0 && stdinEnd;
+    }
 
     function clearLine() {
       process.stderr.clearLine(0);
@@ -106,54 +114,108 @@ program
     }
 
     function tickProgress() {
-      bar.tick();
+      const allCount = allDomains.length;
+      const processedCount = availableDomains.length + notAvailableDomains.length + failedDomains.length;
+      const leftCount = allCount - processedCount;
+      const elapsedMs = Date.now() - startTime;
+      const eta = elapsedMs * (leftCount / processedCount);
+      const percentage = allDomains.length === 0 ? 0 : 100 * processedCount / allCount;
+      bar.curr = 0;
+      bar.tick(isEnd() ? percentage : Math.min(percentage, 99), {
+        itemsEta: ((isFinite(eta) ? eta : 0) / 1000).toFixed(1),
+        itemsElapsed: (elapsedMs / 1000).toFixed(1),
+        itemsPercent: percentage.toFixed(2),
+        itemsCurrent: processedCount,
+        itemsTotal: allCount,
+      });
       bar.render(undefined, true);
     }
 
-    // Set-up data for summary
-    const startTime = Date.now();
-    let availableCount = 0;
-
-    // Run check
-    await getAvailableDomains(allDomains, {
-      ...options,
-      onStatus: (domain, available) => {
+    // Initialize state helpers
+    async function handle(name: string): Promise<void> {
+      try {
+        const available = await isDomainAvailable(name, options);
         clearLine();
         if (available) {
-          availableCount++;
-          process.stdout.write(`${domain}\n`);
+          availableDomains.push(name);
+          process.stdout.write(`${name}\n`);
         } else if (options.printTaken) {
-          process.stdout.write(red(`[T] ${domain}\n`));
+          notAvailableDomains.push(name);
+          process.stdout.write(red(`[T] ${name}\n`));
         }
-        tickProgress();
-      },
-      onError: (domain, error) => {
+      } catch (rawError) {
+        const error = rawError as Error;
+        failedDomains.push(name);
         clearLine();
-        process.stderr.write(red(`${domain} - error: ${error.message.replace(/\n/g, ' ')}\n`));
-        tickProgress();
-      },
-    });
+        process.stderr.write(red(`${name} - error: ${error.message.replace(/\n/g, ' ')}\n`));
+      }
+      tickProgress();
+    }
 
-    // Show summary
-    const took = ((Date.now() - startTime) / 1000).toFixed(3);
-    clearLine();
-    const resultMessage = `${availableCount}/${allDomains.length} unique domains available.`;
-    const duplicatesMessage = duplicatesCount === 0 ? '' : ` Detected ${duplicatesCount} duplicates.`;
-    const tookMessage = ` Took ${took} seconds.`;
-    process.stderr.write(cyan(`${resultMessage}${duplicatesMessage}${tookMessage}\n`));
+    function add(name: string): void {
+      const finalName = name.trim().replace(/^www\./, '').toLowerCase();
+      if (!name) {
+        return;
+      } else if (allDomains.includes(finalName)) {
+        duplicatesCount++;
+      } else {
+        allDomains.push(finalName);
+        queue.add(() => handle(finalName));
+        tickProgress();
+      }
+    }
+
+    let finished = false;
+    function finish(): void {
+      if (!isEnd() || finished) {
+        return;
+      }
+
+      tickProgress();
+
+      finished = true;
+
+      // Show help if there was no domains provided
+      if (allDomains.length === 0) {
+        return program.outputHelp();
+      }
+
+      // Show summary
+      const took = ((Date.now() - startTime) / 1000).toFixed(3);
+      clearLine();
+      const resultMessage = `${availableDomains.length}/${allDomains.length} unique domains available.`;
+      const duplicatesMessage = duplicatesCount === 0 ? '' : ` Detected ${duplicatesCount} duplicates.`;
+      const tookMessage = ` Took ${took} seconds.`;
+      process.stderr.write(cyan(`${resultMessage}${duplicatesMessage}${tookMessage}\n`));
+    }
+
+    for (const name of domains) {
+      add(name);
+    }
+
+    // Handle queue end
+    queue.on('idle', finish);
+
+    // Read stdin if available
+    if (process.stdin.isTTY) {
+      stdinEnd = true;
+    } else {
+      const rl = readline.createInterface({ input: process.stdin });
+      rl.on('line', (line) => extractWords(line).forEach(add));
+      rl.on('close', () => {
+        stdinEnd = true;
+        finish();
+      });
+      rl.on('pause', () => {
+        stdinEnd = true;
+        finish();
+      });
+    }
+
+    // Try to finish immediately if empty
+    finish();
   })
   .showHelpAfterError(true);
 
 // Run program
-
-if (process.stdin.isTTY) {
-  program.parse(process.argv);
-} else {
-  process.stdin.on('readable', () => {
-    const chunk = process.stdin.read();
-    if (chunk !== null) {
-      stdin += chunk;
-    }
-  });
-  process.stdin.on('end', () => program.parse(process.argv));
-}
+program.parse(process.argv);
