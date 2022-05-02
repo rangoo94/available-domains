@@ -40,6 +40,10 @@ program
     intArgument,
     30,
   )
+  .option(
+    '--suffix <suffix>',
+    'Optional suffix(es), helps to add TLDs'
+  )
   .requiredOption(
     '--trust-dns',
     'Should it trust ENOTFOUND from DNS',
@@ -152,17 +156,27 @@ program
       process.stderr.write(cyan(`${resultMessage}${duplicatesMessage}${tookMessage}\n`));
     });
 
-    // Put data from arguments into processor
-    for (const domain of domains) {
-      processor.add(domain);
+    const suffixes: string[] = (options.suffix || '').split(',')
+      .map((x: string) => x.trim())
+      .filter(Boolean)
+      .map((x: string) => x.includes('.') ? x : `.${x}`);
+    function add(name: string): void {
+      if (suffixes.length === 0) {
+        processor.add(name);
+      } else {
+        suffixes.forEach((suffix) => processor.add(`${name}${suffix}`));
+      }
     }
+
+    // Put data from arguments into processor
+    domains.forEach(add);
 
     // Read standard input if available
     if (process.stdin.isTTY) {
       processor.end();
     } else {
       const rl = readline.createInterface({ input: process.stdin });
-      rl.on('line', (line) => extractWords(line).forEach((name) => processor.add(name)));
+      rl.on('line', (line) => extractWords(line).forEach(add));
       rl.on('close', () => processor.end());
     }
 
