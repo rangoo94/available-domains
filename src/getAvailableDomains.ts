@@ -1,11 +1,8 @@
-import pMap = require('p-map');
-import { isDomainAvailable, IsDomainAvailableOptions } from './isDomainAvailable';
+import { DomainProcessor, DomainProcessorOptions } from './DomainProcessor';
 
 const noop = () => {};
 
-export interface GetAvailableDomainsOptions extends IsDomainAvailableOptions {
-  // How many checks may be performed in parallel, default: 30
-  concurrency: number;
+export interface GetAvailableDomainsOptions extends DomainProcessorOptions {
   // Alternative callback to get information immediately about each domain
   onStatus: (domain: string, available: boolean, finishedCount: number) => void;
   // Alternative callback to get error information immediately
@@ -14,32 +11,35 @@ export interface GetAvailableDomainsOptions extends IsDomainAvailableOptions {
 
 export async function getAvailableDomains(domains: string[], options?: Partial<GetAvailableDomainsOptions>): Promise<string[]> {
   // Configure
-  const concurrency = options?.concurrency ?? 30;
   const onStatus = options?.onStatus ?? noop;
   const onError = options?.onError ?? noop;
 
   // Set-up results
   const availableDomains: string[] = [];
-  let finishedCount = 0;
 
-  // Set-up procedure
-  async function run(domain: string): Promise<void> {
-    try {
-      const available = await isDomainAvailable(domain, options);
-      finishedCount++;
+  // Set-up processor
+  return new Promise((resolve) => {
+    const processor = new DomainProcessor(options);
+
+    processor.on('next', (domain, available) => {
       if (available) {
         availableDomains.push(domain);
       }
-      onStatus(domain, available, finishedCount);
-    } catch (error) {
-      finishedCount++;
-      onError(domain, error as Error, finishedCount);
+      onStatus(domain, available, processor.finished + processor.duplicated);
+    });
+
+    processor.on('failed', (domain, error) => {
+      onError(domain, error, processor.finished + processor.duplicated);
+    });
+
+    processor.on('end', () => {
+      resolve(availableDomains);
+    });
+
+    for (const domain of domains) {
+      processor.add(domain);
     }
-  }
 
-  // Run for each domain
-  await pMap(domains, run, { concurrency });
-
-  // Expose final data
-  return availableDomains;
+    processor.end();
+  });
 }
