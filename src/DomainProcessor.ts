@@ -14,6 +14,7 @@ interface DomainProcessorEvents {
   taken: (name: string) => void;
   idle: () => void;
   end: () => void;
+  add: (domain: string) => void;
 }
 
 type DomainProcessorEventListener<K extends keyof DomainProcessorEvents> = DomainProcessorEvents[K];
@@ -102,6 +103,7 @@ export class DomainProcessor extends EventEmitter {
     } else {
       this.queued.push(lowercaseName);
       this.queue.add(() => this.process(lowercaseName));
+      this.emit('add', lowercaseName);
     }
   }
 
