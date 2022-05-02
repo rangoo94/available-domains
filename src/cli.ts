@@ -27,7 +27,7 @@ program
   .version(pkgJson.version)
   .argument('[domains...]')
   .requiredOption<number>(
-    '-c <concurrency>, --concurrency <concurrency>',
+    '--concurrency <concurrency>, -c <concurrency>',
     'How many concurrent checks may be performed',
     intArgument,
     30,
@@ -43,19 +43,19 @@ program
     false,
   )
   .requiredOption<number>(
-    '-t <timeout>, --timeout <timeout>',
+    '--timeout <timeout>, -t <timeout>',
     'Timeout for WHOIS connection (ms)',
     intArgument,
     3000
   )
   .requiredOption<number>(
-    '-r <maxRetries>, --max-retries <maxRetries>',
+    '--max-retries <maxRetries>, -r <maxRetries>',
     'How many times it may retry rate limited WHOIS query',
     intArgument,
     2
   )
   .requiredOption<number>(
-    '-rt <retryTime>, --retry-time <retryTime>',
+    '--retry-time <retryTime>, -rt <retryTime>',
     'Retry time of WHOIS query when rate limited (ms)',
     intArgument,
     3000
