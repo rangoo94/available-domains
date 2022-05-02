@@ -52,12 +52,13 @@ Usage: available-domains [options] [domains...]
 
 Options:
   -V, --version                                  output the version number
-  -c <concurrency>, --concurrency <concurrency>  How many concurrent checks may be performed (default: 30)
+  --concurrency <concurrency>, -c <concurrency>  How many concurrent checks may be performed (default: 30)
+  --suffix <suffix>                              Optional suffix(es), helps to add TLDs
   --trust-dns                                    Should it trust ENOTFOUND from DNS (default: false)
   --printTaken, --print-taken, -pt               Should it print taken domains too (with "[T]" prefix) (default: false)
-  -t <timeout>, --timeout <timeout>              Timeout for WHOIS connection (ms) (default: 3000)
-  -r <maxRetries>, --max-retries <maxRetries>    How many times it may retry rate limited WHOIS query (default: 2)
-  -rt <retryTime>, --retry-time <retryTime>      Retry time of WHOIS query when rate limited (ms) (default: 3000)
+  --timeout <timeout>, -t <timeout>              Timeout for WHOIS connection (ms) (default: 3000)
+  --max-retries <maxRetries>, -r <maxRetries>    How many times it may retry rate limited WHOIS query (default: 2)
+  --retry-time <retryTime>, -rt <retryTime>      Retry time of WHOIS query when rate limited (ms) (default: 3000)
   --proxy <proxy>, -p <proxy>                    SOCKS Proxy "<ip>:<port>"
   -h, --help                                     Show help information (default: false)
 ```
