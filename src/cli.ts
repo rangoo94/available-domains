@@ -174,6 +174,9 @@ program
     // Read standard input if available
     if (process.stdin.isTTY) {
       processor.end();
+      if (processor.size === 0) {
+        program.outputHelp();
+      }
     } else {
       const rl = readline.createInterface({ input: process.stdin });
       rl.on('line', (line) => extractWords(line).forEach(add));
